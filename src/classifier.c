@@ -43,7 +43,6 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
     int* indexes = (int*)xcalloc(top, sizeof(int));
     char buff[256];
     char *input = buff;
-    //int size = net.w;
     double begin = get_time_point();
     while(1){
         strncpy(input, filename, 256);
@@ -63,8 +62,7 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
 
         for(i = 0; i < top; ++i){
             int index = indexes[i];
-            if(net.hierarchy) printf("%d, %s: %f, parent: %s \n",index, names[index], predictions[index], (net.hierarchy->parent[index] >= 0) ? names[net.hierarchy->parent[index]] : "Root");
-            else printf("%s: %f\n",names[index], predictions[index]);
+            printf("%s: %f\n",names[index], predictions[index]);
         }
 
         free_image(cropped);

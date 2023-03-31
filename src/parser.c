@@ -75,8 +75,6 @@ convolutional_layer parse_convolutional(list *options, size_params params)
     int size = option_find_int(options, "size",1);
     int stride = option_find_int(options, "stride",1);
 
-    int dilation = option_find_int_quiet(options, "dilation", 1);
-    if (size == 1) dilation = 1;
     int pad = option_find_int_quiet(options, "pad",0);
     int padding = option_find_int_quiet(options, "padding",0);
     if(pad) padding = size/2;
@@ -89,18 +87,9 @@ convolutional_layer parse_convolutional(list *options, size_params params)
     w = params.w;
     c = params.c;
     batch=params.batch;
-    if(!(h && w && c)) error("Layer before convolutional layer must output image.", DARKNET_LOC);
     int batch_normalize = option_find_int_quiet(options, "batch_normalize", 0);
-    int cbn = option_find_int_quiet(options, "cbn", 0);
-    if (cbn) batch_normalize = 2;
-    int rotate = option_find_int_quiet(options, "rotate", 0);
 
-
-    convolutional_layer layer = make_convolutional_layer(batch,1,h,w,c,n,groups,size,stride,dilation,padding,activation, batch_normalize, params.net.adam, params.index, params.train);
-    layer.dot = option_find_float_quiet(options, "dot", 0);
-    layer.rotate = rotate;
-    layer.angle = option_find_float_quiet(options, "angle", 15);
-    layer.reverse = option_find_float_quiet(options, "reverse", 0);
+    convolutional_layer layer = make_convolutional_layer(batch,h,w,c,n,groups,size,stride,padding,activation, batch_normalize);
 
     return layer;
 }
@@ -109,7 +98,6 @@ softmax_layer parse_softmax(list *options, size_params params)
 {
 	int groups = option_find_int_quiet(options, "groups", 1);
 	softmax_layer layer = make_softmax_layer(params.batch, params.inputs, groups);
-	layer.temperature = option_find_float_quiet(options, "temperature", 1);
     //remove read_tree
 	layer.w = params.w;
 	layer.h = params.h;
@@ -121,9 +109,7 @@ cost_layer parse_cost(list *options, size_params params)
 {
     char *type_s = option_find_str(options, "type", "sse");
     COST_TYPE type = get_cost_type(type_s);
-    float scale = option_find_float_quiet(options, "scale",1);
-    cost_layer layer = make_cost_layer(params.batch, params.inputs, type, scale);
-    layer.ratio =  option_find_float_quiet(options, "ratio",0);
+    cost_layer layer = make_cost_layer(params.batch, params.inputs, type);
     return layer;
 }
 
@@ -133,8 +119,6 @@ maxpool_layer parse_maxpool(list *options, size_params params)
     int stride = option_find_int(options, "stride",1);
     int size = option_find_int(options, "size",stride);
     int padding = option_find_int_quiet(options, "padding", size-1);
-    int maxpool_depth = option_find_int_quiet(options, "maxpool_depth", 0);
-    int out_channels = option_find_int_quiet(options, "out_channels", 1);
     const int avgpool = 0;
 
     int batch,h,w,c;
@@ -143,7 +127,7 @@ maxpool_layer parse_maxpool(list *options, size_params params)
     c = params.c;
     batch=params.batch;
 
-    maxpool_layer layer = make_maxpool_layer(batch, h, w, c, size, stride, padding, maxpool_depth, out_channels, avgpool, params.train);
+    maxpool_layer layer = make_maxpool_layer(batch, h, w, c, size, stride, padding, avgpool);
     return layer;
 }
 
@@ -168,13 +152,8 @@ void parse_net_options(list *options, network *net)
 {
     net->max_batches = option_find_int(options, "max_batches", 0);
     net->batch = option_find_int(options, "batch",1);
-    net->learning_rate = option_find_float(options, "learning_rate", .001);
-    net->momentum = option_find_float(options, "momentum", .9);
-    net->decay = option_find_float(options, "decay", .0001);
     int subdivs = option_find_int(options, "subdivisions",1);
     net->time_steps = option_find_int_quiet(options, "time_steps",1);
-    net->init_sequential_subdivisions = net->sequential_subdivisions = option_find_int_quiet(options, "sequential_subdivisions", subdivs);
-    if (net->sequential_subdivisions > subdivs) net->init_sequential_subdivisions = net->sequential_subdivisions = subdivs;
     net->batch /= subdivs;          // mini_batch
     net->batch *= net->time_steps;  // mini_batch * time_steps
     net->subdivisions = subdivs;    // number of mini_batches
@@ -183,76 +162,13 @@ void parse_net_options(list *options, network *net)
     *net->cur_iteration = 0;
     net->workspace_size_limit = (size_t)1024*1024 * option_find_float_quiet(options, "workspace_size_limit_MB", 1024);  // 1024 MB by default
 
-
-    net->adam = option_find_int_quiet(options, "adam", 0);
-
     net->h = option_find_int_quiet(options, "height",0);
     net->w = option_find_int_quiet(options, "width",0);
     net->c = option_find_int_quiet(options, "channels",0);
     net->inputs = option_find_int_quiet(options, "inputs", net->h * net->w * net->c);
-    net->max_crop = option_find_int_quiet(options, "max_crop",net->w*2);
-    net->min_crop = option_find_int_quiet(options, "min_crop",net->w);
-
-    net->angle = option_find_float_quiet(options, "angle", 0);
-    net->aspect = option_find_float_quiet(options, "aspect", 1);
-    net->saturation = option_find_float_quiet(options, "saturation", 1);
-    net->exposure = option_find_float_quiet(options, "exposure", 1);
-    net->hue = option_find_float_quiet(options, "hue", 0);
-
-    if(!net->inputs && !(net->h && net->w && net->c)) error("No input parameters supplied", DARKNET_LOC);
 
     char *policy_s = option_find_str(options, "policy", "constant");
     net->policy = get_policy(policy_s);
-    net->burn_in = option_find_int_quiet(options, "burn_in", 0);
-
-    if(net->policy == STEP){
-        net->step = option_find_int(options, "step", 1);
-        net->scale = option_find_float(options, "scale", 1);
-    } else if (net->policy == STEPS || net->policy == SGDR){
-        char *l = option_find(options, "steps");
-        char *p = option_find(options, "scales");
-        char *s = option_find(options, "seq_scales");
-        if(net->policy == STEPS && (!l || !p)) error("STEPS policy must have steps and scales in cfg file", DARKNET_LOC);
-
-        if (l) {
-            int len = strlen(l);
-            int n = 1;
-            int i;
-            for (i = 0; i < len; ++i) {
-                if (l[i] == '#') break;
-                if (l[i] == ',') ++n;
-            }
-            int* steps = (int*)xcalloc(n, sizeof(int));
-            float* scales = (float*)xcalloc(n, sizeof(float));
-            float* seq_scales = (float*)xcalloc(n, sizeof(float));
-            for (i = 0; i < n; ++i) {
-                float scale = 1.0;
-                if (p) {
-                    scale = atof(p);
-                    p = strchr(p, ',') + 1;
-                }
-                float sequence_scale = 1.0;
-                if (s) {
-                    sequence_scale = atof(s);
-                    s = strchr(s, ',') + 1;
-                }
-                int step = atoi(l);
-                l = strchr(l, ',') + 1;
-                steps[i] = step;
-                scales[i] = scale;
-                seq_scales[i] = sequence_scale;
-            }
-            net->scales = scales;
-            net->steps = steps;
-            net->seq_scales = seq_scales;
-            net->num_steps = n;
-        }
-    } else if (net->policy == EXP){
-        net->gamma = option_find_float(options, "gamma", 1);
-    } else if (net->policy == SIG){
-        net->gamma = option_find_float(options, "gamma", 1);
-        net->step = option_find_int(options, "step", 1);
-    }
 
 }
 
@@ -329,7 +245,6 @@ network parse_network_cfg_custom(char *filename, int batch, int time_steps)
             l = parse_cost(options, params);
         }else if(lt == SOFTMAX){
             l = parse_softmax(options, params);
-            net.hierarchy = l.softmax_tree;
         }else if(lt == MAXPOOL){
             l = parse_maxpool(options, params);
         }else if(lt == AVGPOOL){
@@ -460,7 +375,6 @@ void load_weights_upto(network *net, char *filename, int cutoff)
     }
     *net->cur_iteration = get_current_batch(*net);
     printf(", trained: %.0f K-images (%.0f Kilo-batches_64) \n", (float)(*net->seen / 1000), (float)(*net->seen / 64000));
-    int transpose = (major > 1000) || (minor > 1000);
 
     int i;
     for(i = 0; i < net->n && i < cutoff; ++i){
@@ -469,7 +383,6 @@ void load_weights_upto(network *net, char *filename, int cutoff)
         if(l.type == CONVOLUTIONAL){
             load_convolutional_weights(l, fp);
         }
-
         if (feof(fp)) break;
     }
     fprintf(stderr, "Done! Loaded %d layers from weights-file \n", i);

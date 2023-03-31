@@ -19,7 +19,6 @@
 #include "stb_image_write.h"
 #endif
 
-extern int check_mistakes;
 //int windows = 0;
 
 float colors[6][3] = { {1,0,1}, {0,0,1},{0,1,1},{0,1,0},{1,1,0},{1,0,0} };
@@ -171,21 +170,7 @@ image load_image_stb(char *filename, int channels)
     int w, h, c;
     unsigned char *data = stbi_load(filename, &w, &h, &c, channels);
     if (!data) {
-        char shrinked_filename[1024];
-        if (strlen(filename) >= 1024) sprintf(shrinked_filename, "name is too long");
-        else sprintf(shrinked_filename, "%s", filename);
-        fprintf(stderr, "Cannot load image \"%s\"\nSTB Reason: %s\n", shrinked_filename, stbi_failure_reason());
-        FILE* fw = fopen("bad.list", "a");
-        fwrite(shrinked_filename, sizeof(char), strlen(shrinked_filename), fw);
-        char *new_line = "\n";
-        fwrite(new_line, sizeof(char), strlen(new_line), fw);
-        fclose(fw);
-        //if (check_mistakes) {
-        //    printf("\n Error in load_image_stb() \n");
-        //    getchar();
-        //}
-        return make_image(10, 10, 3);
-        //exit(EXIT_FAILURE);
+        fprintf(stderr, "image loading error\n");
     }
     if(channels) c = channels;
     int i,j,k;
@@ -205,12 +190,8 @@ image load_image_stb(char *filename, int channels)
 
 image load_image(char *filename, int w, int h, int c)
 {
-#ifdef OPENCV
-    //image out = load_image_stb(filename, c);
-    image out = load_image_cv(filename, c);
-#else
-    image out = load_image_stb(filename, c);    // without OpenCV
-#endif  // OPENCV
+
+    image out = load_image_stb(filename, c);
 
     if((h && w) && (h != out.h || w != out.w)){
         image resized = resize_image(out, w, h);

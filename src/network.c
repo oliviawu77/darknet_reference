@@ -114,8 +114,6 @@ float *network_predict(network net, float *input)
     return out;
 }
 
-
-
 void free_network(network net)
 {
     int i;
@@ -124,9 +122,6 @@ void free_network(network net)
     }
     free(net.layers);
 
-    free(net.seq_scales);
-    free(net.scales);
-    free(net.steps);
     free(net.seen);
     free(net.cur_iteration);
     free(net.total_bbox);

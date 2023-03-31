@@ -29,7 +29,7 @@ void l2_cpu(int n, float *pred, float *truth, float *delta, float *error)
     }
 }
 
-void softmax(float *input, int n, float temp, float *output, int stride)
+void softmax(float *input, int n, float *output, int stride)
 {
     int i;
     float sum = 0;
@@ -38,7 +38,7 @@ void softmax(float *input, int n, float temp, float *output, int stride)
         if(input[i*stride] > largest) largest = input[i*stride];
     }
     for(i = 0; i < n; ++i){
-        float e = exp(input[i*stride]/temp - largest/temp);
+        float e = exp(input[i*stride] - largest);
         sum += e;
         output[i*stride] = e;
     }
@@ -48,12 +48,12 @@ void softmax(float *input, int n, float temp, float *output, int stride)
 }
 
 
-void softmax_cpu(float *input, int n, int batch, int batch_offset, int groups, int group_offset, int stride, float temp, float *output)
+void softmax_cpu(float *input, int n, int batch, int batch_offset, int groups, int group_offset, int stride, float *output)
 {
     int g, b;
     for(b = 0; b < batch; ++b){
         for(g = 0; g < groups; ++g){
-            softmax(input + b*batch_offset + g*group_offset, n, temp, output + b*batch_offset + g*group_offset, stride);
+            softmax(input + b*batch_offset + g*group_offset, n, output + b*batch_offset + g*group_offset, stride);
         }
     }
 }

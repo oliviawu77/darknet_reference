@@ -21,9 +21,7 @@ softmax_layer make_softmax_layer(int batch, int inputs, int groups)
     l.groups = groups;
     l.inputs = inputs;
     l.outputs = inputs;
-    l.loss = (float*)xcalloc(inputs * batch, sizeof(float));
     l.output = (float*)xcalloc(inputs * batch, sizeof(float));
-    l.delta = (float*)xcalloc(inputs * batch, sizeof(float));
     l.cost = (float*)xcalloc(1, sizeof(float));
 
     l.forward = forward_softmax_layer;
@@ -35,7 +33,7 @@ softmax_layer make_softmax_layer(int batch, int inputs, int groups)
 void forward_softmax_layer(const softmax_layer l, network_state net)
 {
     //remove softmax tree
-    softmax_cpu(net.input, l.inputs/l.groups, l.batch, l.inputs, l.groups, l.inputs/l.groups, 1, l.temperature, l.output);
+    softmax_cpu(net.input, l.inputs/l.groups, l.batch, l.inputs, l.groups, l.inputs/l.groups, 1, l.output);
     //remove softmax_x_ent_cpu()
 }
 

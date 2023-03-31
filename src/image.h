@@ -19,7 +19,6 @@ typedef struct {
     float *data;
 } image;
 */
-void write_label(image a, int r, int c, image *characters, char *string, float *rgb);
 void scale_image(image m, float s);
 
 //LIB_API image make_image(int w, int h, int c);

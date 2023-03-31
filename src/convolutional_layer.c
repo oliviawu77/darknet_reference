@@ -44,26 +44,22 @@ size_t get_convolutional_workspace_size(layer l) {
     return workspace_size;
 }
 
-convolutional_layer make_convolutional_layer(int batch, int steps, int h, int w, int c, int n, int groups, int size, int stride, int dilation, int padding, ACTIVATION activation, int batch_normalize, int adam, int index, int train)
+convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int n, int groups, int size, int stride, int padding, ACTIVATION activation, int batch_normalize)
 {
-    int total_batch = batch*steps;
+    int total_batch = batch;
     int i;
     convolutional_layer l = { (LAYER_TYPE)0 };
     l.type = CONVOLUTIONAL;
-    l.train = train;
 
     if (groups < 1) groups = 1;
 
-    l.index = index;
     l.h = h;
     l.w = w;
     l.c = c;
     l.groups = groups;
     l.n = n;
     l.batch = batch;
-    l.steps = steps;
     l.stride = stride;
-    l.dilation = dilation;
     l.size = size;
     l.pad = padding;
     l.batch_normalize = batch_normalize;
@@ -88,24 +84,19 @@ convolutional_layer make_convolutional_layer(int batch, int steps, int h, int w,
     l.output = (float*)xcalloc(total_batch*l.outputs, sizeof(float));
 
     l.forward = forward_convolutional_layer;
-    //remove backward layer and update layer
-    //remove binary and xnor condition
 
     if(batch_normalize){
         l.scales = (float*)xcalloc(n, sizeof(float));
         for (i = 0; i < n; ++i) {
             l.scales[i] = 1;
         }
-        //remove unused part
         l.rolling_mean = (float*)xcalloc(n, sizeof(float));
         l.rolling_variance = (float*)xcalloc(n, sizeof(float));
     }
 
 
-    //remove unused part
     l.workspace_size = get_convolutional_workspace_size(l);
 
-    //fprintf(stderr, "conv  %5d %2d x%2d /%2d  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", n, size, size, stride, w, h, c, l.out_w, l.out_h, l.out_c);
     l.bflops = (2.0 * l.nweights * l.out_h*l.out_w) / 1000000000.;
 
     fprintf(stderr, "conv  ");
@@ -141,8 +132,6 @@ void forward_convolutional_layer(convolutional_layer l, network_state state)
 
     fill_cpu(l.outputs*l.batch, 0, l.output, 1);
 
-    //remove xnor
-
     int m = l.n;
     int k = l.size*l.size*l.c;
     int n = out_h*out_w;
@@ -160,7 +149,6 @@ void forward_convolutional_layer(convolutional_layer l, network_state state)
         state.input += l.c*l.h*l.w;
     }
 
-    //remove batch normalize here
     add_bias(l.output, l.biases, l.batch, l.n, out_h*out_w);
 
     activate_array(l.output, m*n*l.batch, l.activation);

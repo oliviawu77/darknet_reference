@@ -6,8 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern int check_mistakes;
-
 list *get_paths(char *filename)
 {
     char *path;
