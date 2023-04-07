@@ -67,6 +67,7 @@
         "cstdlib": "c",
         "*.rh": "c",
         "bit": "c",
-        "cstddef": "c"
+        "cstddef": "c",
+        "cstdio": "c"
     }
 }

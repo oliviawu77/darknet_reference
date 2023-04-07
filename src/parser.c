@@ -21,8 +21,6 @@ typedef struct{
     list *options;
 }section;
 
-list *read_cfg(char *filename);
-
 LAYER_TYPE string_to_layer_type(char * type)
 {
     if (strcmp(type, "[cost]")==0) return COST;
@@ -68,18 +66,16 @@ typedef struct size_params{
 } size_params;
 
 
-convolutional_layer parse_convolutional(list *options, size_params params)
+convolutional_layer parse_convolutional(int batch_normalize, int filter, int size, int stride, int pad, char* activation_s, size_params params)
 {
-    int n = option_find_int(options, "filters",1);
-    int groups = option_find_int_quiet(options, "groups", 1);
-    int size = option_find_int(options, "size",1);
-    int stride = option_find_int(options, "stride",1);
+    int n = filter;
+    int groups = 1;
 
-    int pad = option_find_int_quiet(options, "pad",0);
-    int padding = option_find_int_quiet(options, "padding",0);
+    int dilation = 1;
+    if (size == 1) dilation = 1;
+    int padding;
     if(pad) padding = size/2;
 
-    char *activation_s = option_find_str(options, "activation", "logistic");
     ACTIVATION activation = get_activation(activation_s);
 
     int batch,h,w,c;
@@ -87,38 +83,43 @@ convolutional_layer parse_convolutional(list *options, size_params params)
     w = params.w;
     c = params.c;
     batch=params.batch;
-    int batch_normalize = option_find_int_quiet(options, "batch_normalize", 0);
+
+    if(!(h && w && c)) error("Layer before convolutional layer must output image.", DARKNET_LOC);
 
     convolutional_layer layer = make_convolutional_layer(batch,h,w,c,n,groups,size,stride,padding,activation, batch_normalize);
+    //fprintf(stderr, "batch: %d, h: %d, w: %d, c: %d, n: %d, groups: %d, size: %d, stride: %d, padding: %d, activation: %s, batch_normalize: %d, \n", batch, h, w, c, n, groups, size, stride, padding, activation, batch_normalize);
+    //printf("batch: %d, h: %d, w: %d, c: %d, n: %d, groups: %d, size: %d, stride: %s, padding: %d, activation: %s, batch_normalize: %d, \n", batch, h, w, c, n, groups, size, stride, padding, activation, batch_normalize);
 
     return layer;
 }
 
-softmax_layer parse_softmax(list *options, size_params params)
+softmax_layer parse_softmax(size_params params)
 {
-	int groups = option_find_int_quiet(options, "groups", 1);
+	int groups = 1;
 	softmax_layer layer = make_softmax_layer(params.batch, params.inputs, groups);
-    //remove read_tree
+
 	layer.w = params.w;
 	layer.h = params.h;
 	layer.c = params.c;
 	return layer;
 }
 
-cost_layer parse_cost(list *options, size_params params)
+cost_layer parse_cost(size_params params)
 {
-    char *type_s = option_find_str(options, "type", "sse");
+    char *type_s = "sse";
     COST_TYPE type = get_cost_type(type_s);
+
     cost_layer layer = make_cost_layer(params.batch, params.inputs, type);
+
     return layer;
 }
 
 
-maxpool_layer parse_maxpool(list *options, size_params params)
+maxpool_layer parse_maxpool(size_params params)
 {
-    int stride = option_find_int(options, "stride",1);
-    int size = option_find_int(options, "size",stride);
-    int padding = option_find_int_quiet(options, "padding", size-1);
+    int stride = 2;
+    int size = 2;
+    int padding = 1;
     const int avgpool = 0;
 
     int batch,h,w,c;
@@ -131,7 +132,7 @@ maxpool_layer parse_maxpool(list *options, size_params params)
     return layer;
 }
 
-avgpool_layer parse_avgpool(list *options, size_params params)
+avgpool_layer parse_avgpool(size_params params)
 {
     int batch,w,h,c;
     w = params.w;
@@ -148,26 +149,28 @@ learning_rate_policy get_policy(char *s)
 	return POLY;
 }
 
-void parse_net_options(list *options, network *net)
+void parse_net_options(network *net)
 {
-    net->max_batches = option_find_int(options, "max_batches", 0);
-    net->batch = option_find_int(options, "batch",1);
-    int subdivs = option_find_int(options, "subdivisions",1);
-    net->time_steps = option_find_int_quiet(options, "time_steps",1);
+    net->max_batches = 1600000;
+    net->batch = 1;
+    int subdivs = 1;
+    net->time_steps = 1;
     net->batch /= subdivs;          // mini_batch
     net->batch *= net->time_steps;  // mini_batch * time_steps
     net->subdivisions = subdivs;    // number of mini_batches
 
     *net->seen = 0;
     *net->cur_iteration = 0;
-    net->workspace_size_limit = (size_t)1024*1024 * option_find_float_quiet(options, "workspace_size_limit_MB", 1024);  // 1024 MB by default
+    net->workspace_size_limit = (size_t)1024*1024 * 1024;  // 1024 MB by default
 
-    net->h = option_find_int_quiet(options, "height",0);
-    net->w = option_find_int_quiet(options, "width",0);
-    net->c = option_find_int_quiet(options, "channels",0);
-    net->inputs = option_find_int_quiet(options, "inputs", net->h * net->w * net->c);
+    net->h = 224;
+    net->w = 224;
+    net->c = 3;
+    net->inputs = net->h * net->w * net->c;
 
-    char *policy_s = option_find_str(options, "policy", "constant");
+    if(!net->inputs && !(net->h && net->w && net->c)) error("No input parameters supplied", DARKNET_LOC);
+
+    char *policy_s = "poly";
     net->policy = get_policy(policy_s);
 
 }
@@ -186,19 +189,11 @@ network parse_network_cfg(char *filename)
 
 network parse_network_cfg_custom(char *filename, int batch, int time_steps)
 {
-    list *sections = read_cfg(filename);
-    node *n = sections->front;
-    if(!n) error("Config file has no sections", DARKNET_LOC);
-    network net = make_network(sections->size - 1);
+    network net = make_network(23);
     size_params params;
 
-    params.train = 0;    // allocates memory for Inference only
-
-    section *s = (section *)n->val;
-    list *options = s->options;
-    if(!is_network(s)) error("First section must be [net] or [network]", DARKNET_LOC);
-    parse_net_options(options, &net);
-
+    parse_net_options(&net);
+    
     params.h = net.h;
     params.w = net.w;
     params.c = net.c;
@@ -211,9 +206,8 @@ network parse_network_cfg_custom(char *filename, int batch, int time_steps)
     params.batch = net.batch;
     params.time_steps = net.time_steps;
     params.net = net;
-    printf("mini_batch = %d, batch = %d, time_steps = %d, train = %d \n", net.batch, net.batch * net.subdivisions, net.time_steps, params.train);
+    printf("mini_batch = %d, batch = %d, time_steps = %d \n", net.batch, net.batch * net.subdivisions, net.time_steps);
 
-    int last_stop_backward = -1;
     int avg_outputs = 0;
     int avg_counter = 0;
     float bflops = 0;
@@ -221,56 +215,201 @@ network parse_network_cfg_custom(char *filename, int batch, int time_steps)
     size_t max_inputs = 0;
     size_t max_outputs = 0;
 
-    n = n->next;
     int count = 0;
-    free_section(s);
-
-    int old_params_train = params.train;
 
     fprintf(stderr, "   layer   filters  size/strd(dil)      input                output\n");
-    while(n){
+    
+    int batch_normalize, filter, size, stride, pad;
+    char* activation_s;
+    activation_s = (char*)xmalloc(sizeof(char)*512);
 
-        params.train = old_params_train;
-        if (count < last_stop_backward) params.train = 0;
-
+    while(count < 23){
         params.index = count;
         fprintf(stderr, "%4d ", count);
-        s = (section *)n->val;
-        options = s->options;
         layer l = { (LAYER_TYPE)0 };
-        LAYER_TYPE lt = string_to_layer_type(s->type);
-        if(lt == CONVOLUTIONAL){
-            l = parse_convolutional(options, params);
-        }else if(lt == COST){
-            l = parse_cost(options, params);
-        }else if(lt == SOFTMAX){
-            l = parse_softmax(options, params);
-        }else if(lt == MAXPOOL){
-            l = parse_maxpool(options, params);
-        }else if(lt == AVGPOOL){
-            l = parse_avgpool(options, params);
-        }else{
-            fprintf(stderr, "Type not recognized: %s\n", s->type);
+        switch(count){
+            case 0:
+                batch_normalize = 1;
+                filter = 16;
+                size = 3;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);
+            break;
+            case 1:
+                l = parse_maxpool(params);
+            break;
+            case 2:
+                batch_normalize = 1;
+                filter = 32;
+                size = 3;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);
+            break;
+            case 3:
+                l = parse_maxpool(params);
+            break;
+            case 4:
+                batch_normalize = 1;
+                filter = 16;
+                size = 1;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);
+            break;
+            case 5:
+                batch_normalize = 1;
+                filter = 128;
+                size = 3;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);
+            break;
+            case 6:
+                batch_normalize = 1;
+                filter = 16;
+                size = 1;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);
+            break;
+            case 7:
+                batch_normalize = 1;
+                filter = 128;
+                size = 3;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);
+            break;
+            case 8:
+                l = parse_maxpool(params);
+            break;
+            case 9:
+                batch_normalize = 1;
+                filter = 32;
+                size = 1;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 10:
+                batch_normalize = 1;
+                filter = 256;
+                size = 3;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 11:
+                batch_normalize = 1;
+                filter = 32;
+                size = 1;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 12:
+                batch_normalize = 1;
+                filter = 256;
+                size = 3;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 13:
+                l = parse_maxpool(params);
+            break;
+            case 14:
+                batch_normalize = 1;
+                filter = 64;
+                size = 1;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 15:
+                batch_normalize = 1;
+                filter = 512;
+                size = 3;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 16:
+                batch_normalize = 1;
+                filter = 64;
+                size = 1;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 17:
+                batch_normalize = 1;
+                filter = 512;
+                size = 3;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 18:
+                batch_normalize = 1;
+                filter = 128;
+                size = 1;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "leaky");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 19:
+                batch_normalize = 0;
+                filter = 1000;
+                size = 1;
+                stride = 1;
+                pad = 1;
+                strcpy(activation_s, "linear");
+                l = parse_convolutional(batch_normalize, filter, size, stride, pad, activation_s, params);            
+            break;
+            case 20:
+                l = parse_avgpool(params);
+            break;                        
+            case 21:
+                l = parse_softmax(params);
+            break;           
+            case 22:
+                l = parse_cost(params);
+            break;
+            default:
+                printf("error!!\n");
+            break;
+
         }
-
-        // remove calculate receptive field
-
-        option_unused(options);
-
 
         net.layers[count] = l;
         if (l.workspace_size > workspace_size) workspace_size = l.workspace_size;
         if (l.inputs > max_inputs) max_inputs = l.inputs;
         if (l.outputs > max_outputs) max_outputs = l.outputs;
-        free_section(s);
-        n = n->next;
+
         ++count;
-        if(n){
-            params.h = l.out_h;
-            params.w = l.out_w;
-            params.c = l.out_c;
-            params.inputs = l.outputs;
-        }
+        params.h = l.out_h;
+        params.w = l.out_w;
+        params.c = l.out_c;
+        params.inputs = l.outputs;
+        
         if (l.bflops > 0) bflops += l.bflops;
 
         if (l.w > 1 && l.h > 1) {
@@ -278,8 +417,6 @@ network parse_network_cfg_custom(char *filename, int batch, int time_steps)
             avg_counter++;
         }
     }
-
-    free_list(sections);
 
     net.outputs = get_network_output_size(net);
     net.output = get_network_output(net);
@@ -291,43 +428,6 @@ network parse_network_cfg_custom(char *filename, int batch, int time_steps)
     }
 
     return net;
-}
-
-
-
-list *read_cfg(char *filename)
-{
-    FILE *file = fopen(filename, "r");
-    if(file == 0) file_error(filename);
-    char *line;
-    int nu = 0;
-    list *sections = make_list();
-    section *current = 0;
-    while((line=fgetl(file)) != 0){
-        ++ nu;
-        strip(line);
-        switch(line[0]){
-            case '[':
-                current = (section*)xmalloc(sizeof(section));
-                list_insert(sections, current);
-                current->options = make_list();
-                current->type = line;
-                break;
-            case '\0':
-            case '#':
-            case ';':
-                free(line);
-                break;
-            default:
-                if(!read_option(line, current->options)){
-                    fprintf(stderr, "Config file error line %d, could parse: %s\n", nu, line);
-                    free(line);
-                }
-                break;
-        }
-    }
-    fclose(file);
-    return sections;
 }
 
 void load_convolutional_weights(layer l, FILE *fp)
@@ -375,6 +475,7 @@ void load_weights_upto(network *net, char *filename, int cutoff)
     }
     *net->cur_iteration = get_current_batch(*net);
     printf(", trained: %.0f K-images (%.0f Kilo-batches_64) \n", (float)(*net->seen / 1000), (float)(*net->seen / 64000));
+    int transpose = (major > 1000) || (minor > 1000);
 
     int i;
     for(i = 0; i < net->n && i < cutoff; ++i){

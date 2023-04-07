@@ -23,7 +23,6 @@ int option_find_int(list *l, char *key, int def);
 int option_find_int_quiet(list *l, char *key, int def);
 float option_find_float(list *l, char *key, float def);
 float option_find_float_quiet(list *l, char *key, float def);
-void option_unused(list *l);
 
 //typedef struct {
 //	int classes;

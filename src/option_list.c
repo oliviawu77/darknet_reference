@@ -60,18 +60,6 @@ void option_insert(list *l, char *key, char *val)
     list_insert(l, p);
 }
 
-void option_unused(list *l)
-{
-    node *n = l->front;
-    while(n){
-        kvp *p = (kvp *)n->val;
-        if(!p->used){
-            fprintf(stderr, "Unused field: '%s = %s'\n", p->key, p->val);
-        }
-        n = n->next;
-    }
-}
-
 char *option_find(list *l, char *key)
 {
     node *n = l->front;
