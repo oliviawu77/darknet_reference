@@ -11,23 +11,20 @@
 #include <sys/time.h>
 #endif
 
-void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top)
+void predict_classifier(char *filename, int top)
 {
-    network net = parse_network_cfg_custom(cfgfile, 1, 0);
-    if(weightfile){
-        load_weights(&net, weightfile);
-    }
+    network net = parse_network_cfg_custom(1, 0);
+    load_weights(&net);
     set_batch_network(&net, 1);
     srand(2222222);
 
     fuse_conv_batchnorm(net);
-    //calculate_binary_weights(net);
 
-    list *options = read_data_cfg(datacfg);
+    char *name_list;
+    name_list = (char*)malloc(sizeof(char)* 512);
+    strcpy(name_list, "data/imagenet.shortnames.list");
 
-    char *name_list = option_find_str(options, "names", 0);
-    if(!name_list) name_list = option_find_str(options, "labels", "data/labels.list");
-    int classes = option_find_int(options, "classes", 2);
+    int classes = 1000;
     printf(" classes = %d, output in cfg = %d \n", classes, net.layers[net.n - 1].c);
     layer l = net.layers[net.n - 1];
     if (classes != l.outputs && (l.type == SOFTMAX || l.type == COST)) {
@@ -35,11 +32,10 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
             l.outputs, classes);
         getchar();
     }
-    if (top == 0) top = option_find_int(options, "top", 1);
+    top = 5;
     if (top > classes) top = classes;
 
     int i = 0;
-    char **names = get_labels(name_list);
     int* indexes = (int*)xcalloc(top, sizeof(int));
     char buff[256];
     char *input = buff;
@@ -78,8 +74,6 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
     
     free(indexes);
     free_network(net);
-    free_list_contents_kvp(options);
-    free_list(options);
 }
 
 

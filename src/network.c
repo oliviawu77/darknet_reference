@@ -6,7 +6,6 @@
 
 #include "network.h"
 #include "image.h"
-#include "data.h"
 #include "utils.h"
 #include "blas.h"
 

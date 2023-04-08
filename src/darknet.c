@@ -11,14 +11,14 @@
 #include "blas.h"
 
 
-extern void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top);
+extern void predict_classifier(char *filename, int top);
 
 int main(int argc, char **argv)
 {
 
     init_cpu();
 
-    predict_classifier("cfg/imagenet1k.data", "cfg/tiny.cfg", "weights/tiny.weights", "data/dog.jpg", 5);
+    predict_classifier("data/dog.jpg", 5);
 
     return 0;
 }

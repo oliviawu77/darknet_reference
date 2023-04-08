@@ -8,7 +8,6 @@
 
 
 #include "image.h"
-#include "data.h"
 
 #ifdef __cplusplus
 extern "C" {

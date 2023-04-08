@@ -16,43 +16,6 @@
 #include "softmax_layer.h"
 #include "utils.h"
 
-typedef struct{
-    char *type;
-    list *options;
-}section;
-
-LAYER_TYPE string_to_layer_type(char * type)
-{
-    if (strcmp(type, "[cost]")==0) return COST;
-    if (strcmp(type, "[conv]")==0
-            || strcmp(type, "[convolutional]")==0) return CONVOLUTIONAL;
-    if (strcmp(type, "[net]")==0
-            || strcmp(type, "[network]")==0) return NETWORK;
-    if (strcmp(type, "[max]")==0
-            || strcmp(type, "[maxpool]")==0) return MAXPOOL;
-    if (strcmp(type, "[avg]")==0
-            || strcmp(type, "[avgpool]")==0) return AVGPOOL;
-    if (strcmp(type, "[soft]")==0
-            || strcmp(type, "[softmax]")==0) return SOFTMAX;
-    return BLANK;
-}
-
-void free_section(section *s)
-{
-    free(s->type);
-    node *n = s->options->front;
-    while(n){
-        kvp *pair = (kvp *)n->val;
-        free(pair->key);
-        free(pair);
-        node *next = n->next;
-        free(n);
-        n = next;
-    }
-    free(s->options);
-    free(s);
-}
-
 typedef struct size_params{
     int batch;
     int inputs;
@@ -64,7 +27,6 @@ typedef struct size_params{
     int train;
     network net;
 } size_params;
-
 
 convolutional_layer parse_convolutional(int batch_normalize, int filter, int size, int stride, int pad, char* activation_s, size_params params)
 {
@@ -175,19 +137,7 @@ void parse_net_options(network *net)
 
 }
 
-int is_network(section *s)
-{
-    return (strcmp(s->type, "[net]")==0
-            || strcmp(s->type, "[network]")==0);
-}
-
-
-network parse_network_cfg(char *filename)
-{
-    return parse_network_cfg_custom(filename, 0, 0);
-}
-
-network parse_network_cfg_custom(char *filename, int batch, int time_steps)
+network parse_network_cfg_custom(int batch, int time_steps)
 {
     network net = make_network(23);
     size_params params;
@@ -430,68 +380,66 @@ network parse_network_cfg_custom(char *filename, int batch, int time_steps)
     return net;
 }
 
-void load_convolutional_weights(layer l, FILE *fp)
+int load_convolutional_weights(int count, layer l)
 {
-
     int num = l.nweights;
-    int read_bytes;
-    read_bytes = fread(l.biases, sizeof(float), l.n, fp);
-    if (l.batch_normalize){
-        read_bytes = fread(l.scales, sizeof(float), l.n, fp);
-        read_bytes = fread(l.rolling_mean, sizeof(float), l.n, fp);
-        read_bytes = fread(l.rolling_variance, sizeof(float), l.n, fp);
+    int i;
+    
+    for(i = 0; i < l.n; i++){
+        l.biases[i] = weight_file[count];
+        count++;
     }
-    read_bytes = fread(l.weights, sizeof(float), num, fp);
+    
+    if (l.batch_normalize){        
+        for(i = 0; i < l.n; i++){
+            l.scales[i] = weight_file[count];
+            count++;
+        }
+        for(i = 0; i < l.n; i++){
+            l.rolling_mean[i] = weight_file[count];
+            count++;
+        }
+        for(i = 0; i < l.n; i++){
+            l.rolling_variance[i] = weight_file[count];
+            count++;
+        }     
+    }
 
+    for(i = 0; i < num; i++){
+        l.weights[i] = weight_file[count];
+        count++;
+    }
+    
+
+   return count;
 }
 
 
 
-void load_weights_upto(network *net, char *filename, int cutoff)
+void load_weights_upto(network *net, int cutoff)
 {
+    fprintf(stderr, "Loading weights from...");
 
-    fprintf(stderr, "Loading weights from %s...", filename);
-    fflush(stdout);
-    FILE *fp = fopen(filename, "rb");
-    if(!fp) file_error(filename);
+    printf("\n seen 32");
+    uint32_t iseen = 32204800000;
+    *net->seen = iseen;
 
-    int major;
-    int minor;
-    int revision;
-    fread(&major, sizeof(int), 1, fp);
-    fread(&minor, sizeof(int), 1, fp);
-    fread(&revision, sizeof(int), 1, fp);
-    if ((major * 10 + minor) >= 2) {
-        printf("\n seen 64");
-        uint64_t iseen = 0;
-        fread(&iseen, sizeof(uint64_t), 1, fp);
-        *net->seen = iseen;
-    }
-    else {
-        printf("\n seen 32");
-        uint32_t iseen = 0;
-        fread(&iseen, sizeof(uint32_t), 1, fp);
-        *net->seen = iseen;
-    }
     *net->cur_iteration = get_current_batch(*net);
     printf(", trained: %.0f K-images (%.0f Kilo-batches_64) \n", (float)(*net->seen / 1000), (float)(*net->seen / 64000));
-    int transpose = (major > 1000) || (minor > 1000);
 
     int i;
+    int count = 0;
     for(i = 0; i < net->n && i < cutoff; ++i){
         layer l = net->layers[i];
-        if (0) continue;
         if(l.type == CONVOLUTIONAL){
-            load_convolutional_weights(l, fp);
+            count = load_convolutional_weights(count, l);
         }
-        if (feof(fp)) break;
     }
     fprintf(stderr, "Done! Loaded %d layers from weights-file \n", i);
-    fclose(fp);
 }
 
-void load_weights(network *net, char *filename)
+void load_weights(network *net)
 {
-    load_weights_upto(net, filename, net->n);
+    load_weights_upto(net, net->n);
 }
 

@@ -68,6 +68,12 @@
         "*.rh": "c",
         "bit": "c",
         "cstddef": "c",
-        "cstdio": "c"
+        "cstdio": "c",
+        "parser.h": "c",
+        "crtdbg.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c",
+        "option_list.h": "c",
+        "network.h": "c"
     }
 }
