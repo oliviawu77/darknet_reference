@@ -77,7 +77,7 @@ CPP=g++ -std=c++11
 NVCC=nvcc
 OPTS=-Ofast
 LDFLAGS= -lm
-COMMON= -Iinclude/ -I3rdparty/stb/include
+COMMON= -Iinclude/
 CFLAGS=-Wall -Wfatal-errors -Wno-unused-result -Wno-unknown-pragmas -fPIC -std=c99
 
 ifeq ($(DEBUG), 1)
@@ -151,7 +151,7 @@ LDFLAGS+= -L/usr/local/zed/lib -lsl_zed
 endif
 endif
 
-OBJ= http_stream.o gemm.o utils.o convolutional_layer.o list.o image.o activations.o im2col.o blas.o maxpool_layer.o softmax_layer.o network.o cost_layer.o parser.o option_list.o darknet.o avgpool_layer.o layer.o classifier.o
+OBJ= http_stream.o gemm.o utils.o convolutional_layer.o image.o activations.o im2col.o blas.o maxpool_layer.o softmax_layer.o network.o cost_layer.o parser.o darknet.o avgpool_layer.o layer.o classifier.o
 
 OBJS = $(addprefix $(OBJDIR), $(OBJ))
 DEPS = $(wildcard src/*.h) Makefile include/darknet.h

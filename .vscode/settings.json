@@ -74,6 +74,7 @@
         "stdio.h": "c",
         "stdlib.h": "c",
         "option_list.h": "c",
-        "network.h": "c"
+        "network.h": "c",
+        "math.h": "c"
     }
 }

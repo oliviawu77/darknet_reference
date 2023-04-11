@@ -10,15 +10,6 @@
 #endif
 #include <math.h>
 
-#ifndef STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#endif
-#ifndef STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-#endif
-
 //int windows = 0;
 
 float colors[6][3] = { {1,0,1}, {0,0,1},{0,1,1},{0,1,0},{1,1,0},{1,0,0} };
@@ -165,13 +156,13 @@ image resize_image(image im, int w, int h)
 }
 
 
-image load_image_stb(char *filename, int channels)
+image load_image_stb(int channels)
 {
     int w, h, c;
-    unsigned char *data = stbi_load(filename, &w, &h, &c, channels);
-    if (!data) {
-        fprintf(stderr, "image loading error\n");
-    }
+    w = 768;
+    h = 576;
+    c = 3;
+
     if(channels) c = channels;
     int i,j,k;
     image im = make_image(w, h, c);
@@ -180,18 +171,17 @@ image load_image_stb(char *filename, int channels)
             for(i = 0; i < w; ++i){
                 int dst_index = i + w*j + w*h*k;
                 int src_index = k + c*i + c*w*j;
-                im.data[dst_index] = (float)data[src_index]/255.;
+                im.data[dst_index] = (float)dog[src_index]/255.;
             }
         }
     }
-    free(data);
     return im;
 }
 
-image load_image(char *filename, int w, int h, int c)
+image load_image(int w, int h, int c)
 {
 
-    image out = load_image_stb(filename, c);
+    image out = load_image_stb(c);
 
     if((h && w) && (h != out.h || w != out.w)){
         image resized = resize_image(out, w, h);
@@ -201,9 +191,9 @@ image load_image(char *filename, int w, int h, int c)
     return out;
 }
 
-image load_image_color(char *filename, int w, int h)
+image load_image_color(int w, int h)
 {
-    return load_image(filename, w, h, 3);
+    return load_image(w, h, 3);
 }
 
 

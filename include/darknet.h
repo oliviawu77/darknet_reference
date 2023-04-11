@@ -198,7 +198,7 @@ LIB_API void fuse_conv_batchnorm(network net);
 // image.h
 LIB_API image resize_image(image im, int w, int h);
 LIB_API image make_image(int w, int h, int c);
-LIB_API image load_image_color(char *filename, int w, int h);
+LIB_API image load_image_color(int w, int h);
 LIB_API void free_image(image m);
 LIB_API image crop_image(image im, int dx, int dy, int w, int h);
 LIB_API image resize_min(image im, int min);
